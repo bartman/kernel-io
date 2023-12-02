@@ -12,6 +12,9 @@
 static struct kobject *kio_kobj;
 struct kio_config kio_config = {};
 
+module_param_named(block_device, kio_config.block_device, charp, S_IRUGO);
+MODULE_PARM_DESC(block_device, "target for IO");
+
 // ------------------------------------------------------------------------
 
 enum {
@@ -224,6 +227,45 @@ static struct kobj_attribute num_threads_attribute
 
 // ------------------------------------------------------------------------
 
+static ssize_t kio_runtime_seconds_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", kio_config.runtime_seconds);
+}
+static ssize_t kio_runtime_seconds_store(struct kobject *kobj,
+				 struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int result = -1;
+	int seconds = -1;
+
+	mutex_lock(&kio_config.mutex);
+
+	if (kio_is_running()) {
+		result = -EBUSY;
+		goto unlock_and_return_result;
+	}
+
+	sscanf(buf, "%du", &seconds);
+
+	if (seconds<1 || seconds>60*60) {
+		result = -EOVERFLOW;
+		goto unlock_and_return_result;
+	}
+
+	kio_config.runtime_seconds = seconds;
+	result = count;
+
+unlock_and_return_result:
+	mutex_unlock(&kio_config.mutex);
+
+	return result;
+}
+
+static struct kobj_attribute runtime_seconds_attribute
+	= __ATTR(runtime_seconds, 0664, kio_runtime_seconds_show, kio_runtime_seconds_store);
+
+// ------------------------------------------------------------------------
+
 static ssize_t kio_run_workload_show(struct kobject *kobj,
 				struct kobj_attribute *attr, char *buf)
 {
@@ -278,14 +320,26 @@ int __init kio_config_init(void)
 	retval = sysfs_create_file(kio_kobj,
 				   &num_threads_attribute.attr);
 	if (retval)
-		kobject_put(kio_kobj);
+		goto err_num_threads;
+
+	// Create the runtime_seconds file
+	retval = sysfs_create_file(kio_kobj,
+				   &runtime_seconds_attribute.attr);
+	if (retval)
+		goto err_runtime_seconds;
 
 	// Create the run_workload file
 	retval = sysfs_create_file(kio_kobj,
 				   &run_workload_attribute.attr);
 	if (retval)
-		kobject_put(kio_kobj);
+		goto err_run_workload;
 
+	return 0;
+
+err_run_workload:
+err_runtime_seconds:
+err_num_threads:
+	kobject_put(kio_kobj);
 	return retval;
 }
 void __exit kio_config_exit(void)

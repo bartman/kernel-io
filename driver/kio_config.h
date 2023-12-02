@@ -8,9 +8,11 @@
 struct kio_thread_config;
 
 struct kio_config {
-	const char *block_dev;
-
 	struct mutex mutex;
+	char *block_device;
+
+	uint32_t runtime_seconds;
+
 	uint32_t num_threads;
 	struct kio_thread_config *threads;
 };
