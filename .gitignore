@@ -1,0 +1,17 @@
+*~
+*.o
+.*.cmd
+.*.swp
+kio.mod
+
+build/
+
+include/kio_version.h
+
+cscope.files
+cscope.out
+tags
+
+perf.data
+perf.data.old
+trace.dat

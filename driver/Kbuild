@@ -1,0 +1,8 @@
+obj-m += kio.o
+kio-sources = kio_main.c
+kio-objs += ${kio-sources:%.c=%.o}
+
+ccflags-y := -g
+
+EXTRA_CFLAGS := -I$(src)/../include
+

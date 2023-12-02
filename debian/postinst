@@ -1,0 +1,67 @@
+#!/bin/sh
+
+# fail if any step fails
+set -e
+
+modp_file=/etc/modprobe.d/kio.conf
+
+. /usr/share/debconf/confmodule
+
+# Alternatively this check can be disabled by preseeding:
+#   echo "kio/block_device string /dev/vdb" | debconf-set-selections
+
+case "$1" in
+        configure)
+                db_input high thimulator/block_device || true
+                db_go
+
+                db_get thimulator/block_device
+                if test -z "$RET" ; then
+                        echo >&2 "No block device selected."
+                        exit 0
+                else
+                        if ! test -b $RET ; then
+                                echo >&2 "Selected '$RET' is not a valid block device."
+                                exit 1
+                        fi
+                        if grep -q $RET /proc/mounts ; then
+                                echo >&2 "Selected '$RET' is mounted."
+                                exit 1
+                        fi
+                        if grep -q $RET /proc/mdstat ; then
+                                echo >&2 "Selected '$RET' is used by MD RAID."
+                                exit 1
+                        fi
+                        if command -v pvdisplay >/dev/null 2>&1 ; then
+                                if pvdisplay | grep -q $RET ; then
+                                        echo >&2 "Selected '$RET' is used by LVM."
+                                        exit 1
+                                fi
+                        fi
+                        if ! test -f $modp_file ; then
+                                echo "options kio block_device=$RET" > $modp_file
+                        elif ! sed -i -e '/options kio /s,\<block_device=.*\>,block_device='"$RET"',' $modp_file ; then
+                                echo >&2 "Failed setting 'block_device=$RET' in $modp_file"
+                                exit 1
+                        fi
+                        echo >&2 "Using block device '$RET'."
+                fi
+
+                break
+                ;;
+
+        abort-upgrade|abort-remove|abort-deconfigure)
+                exit 0
+                ;;
+
+        *)
+                echo >&2 "postinst called with unknown argument \"$1\""
+                exit 1
+                ;;
+esac
+
+dkms add -m {NAME} -v {VERSION}
+dkms build -m {NAME} -v {VERSION} && dkms install -m {NAME} -v {VERSION} || true
+
+exit 0
+

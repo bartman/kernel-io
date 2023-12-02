@@ -1,0 +1,12 @@
+Package: kio
+Source: kio
+Version: 0.0
+Section: custom
+Priority: optional
+Architecture: amd64
+Essential: no
+Installed-Size: 1024
+Depends: dkms, lsb-release
+Maintainer: bart@jukie.net
+Description: Kernel-IO benchmark.
+

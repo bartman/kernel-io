@@ -1,0 +1,6 @@
+#!/bin/sh
+
+dkms remove -m {NAME} -v {VERSION} --all || true
+
+# ignore all errors
+exit 0
