@@ -7,6 +7,7 @@
 #include <linux/init.h>
 
 #include "kio_config.h"
+#include "kio_run.h"
 
 static struct kobject *kio_kobj;
 struct kio_config kio_config = {};
@@ -60,6 +61,9 @@ static ssize_t kio_thread_var_store(struct kobject *kobj, struct kobj_attribute 
 	struct kio_thread_config *ktc;
 	long value = -1;
 	int rc;
+
+	if (kio_is_running())
+		return -EBUSY;
 
 	ktc = kio_thread_config_from_kobj(kobj);
 	if (!ktc)
@@ -174,6 +178,11 @@ static ssize_t kio_num_threads_store(struct kobject *kobj,
 
 	mutex_lock(&kio_config.mutex);
 
+	if (kio_is_running()) {
+		result = -EBUSY;
+		goto unlock_and_return_result;
+	}
+
 	if (kio_config.num_threads || kio_config.threads) {
 		result = -EEXIST;
 		goto unlock_and_return_result;
@@ -210,10 +219,48 @@ unlock_and_return_result:
 	return result;
 }
 
-// ------------------------------------------------------------------------
-
 static struct kobj_attribute num_threads_attribute
 	= __ATTR(num_threads, 0664, kio_num_threads_show, kio_num_threads_store);
+
+// ------------------------------------------------------------------------
+
+static ssize_t kio_run_workload_show(struct kobject *kobj,
+				struct kobj_attribute *attr, char *buf)
+{
+    return sprintf(buf, "%d\n", kio_is_running());
+}
+static ssize_t kio_run_workload_store(struct kobject *kobj,
+				 struct kobj_attribute *attr, const char *buf, size_t count)
+{
+	int result = -1;
+
+	mutex_lock(&kio_config.mutex);
+
+	if (kio_is_running()) {
+		result = -EBUSY;
+		goto unlock_and_return_result;
+	}
+
+	if (!kio_config.num_threads || !kio_config.threads) {
+		result = -ECHILD;
+		goto unlock_and_return_result;
+	}
+
+	kio_run(&kio_config);
+
+	result = count;
+
+unlock_and_return_result:
+	mutex_unlock(&kio_config.mutex);
+
+	return result;
+}
+
+static struct kobj_attribute run_workload_attribute
+	= __ATTR(run_workload, 0664, kio_run_workload_show, kio_run_workload_store);
+
+// ------------------------------------------------------------------------
+
 
 int __init kio_config_init(void)
 {
@@ -230,6 +277,12 @@ int __init kio_config_init(void)
 	// Create the num_threads file
 	retval = sysfs_create_file(kio_kobj,
 				   &num_threads_attribute.attr);
+	if (retval)
+		kobject_put(kio_kobj);
+
+	// Create the run_workload file
+	retval = sysfs_create_file(kio_kobj,
+				   &run_workload_attribute.attr);
 	if (retval)
 		kobject_put(kio_kobj);
 

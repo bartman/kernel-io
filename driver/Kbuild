@@ -1,6 +1,7 @@
 obj-m += kio.o
 kio-sources = kio_main.c \
-              kio_config.c
+              kio_config.c \
+              kio_status.c
 kio-objs += ${kio-sources:%.c=%.o}
 
 ccflags-y := -g
