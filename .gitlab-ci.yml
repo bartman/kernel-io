@@ -1,0 +1,45 @@
+#
+stages:
+  - build
+  - package
+
+build:buster:
+  stage: build
+  image: debian:buster
+  before_script:
+    - ./.gitlab-ci-prep.sh
+  script:
+    - echo "Compiling the code..."
+    - make KVER='*'
+    - echo "Compile complete."
+
+build:bionic:
+  stage: build
+  image: ubuntu:bionic
+  before_script:
+    - ./.gitlab-ci-prep.sh
+  script:
+    - echo "Compiling the code..."
+    - make KVER='*'
+    - echo "Compile complete."
+
+package:buster:
+  stage: package
+  image: debian:buster
+  before_script:
+    - ./.gitlab-ci-prep.sh
+  script:
+    - echo "Producing package..."
+    - make deb
+    - echo "Package complete."
+
+package:bionic:
+  stage: package
+  image: ubuntu:bionic
+  before_script:
+    - ./.gitlab-ci-prep.sh
+  script:
+    - echo "Producing package..."
+    - make deb
+    - echo "Package complete."
+
