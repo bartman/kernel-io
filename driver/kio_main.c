@@ -30,6 +30,7 @@
 
 #include "kio_compat.h"
 #include "kio_version.h"
+#include "kio_config.h"
 
 
 static int __init kio_init(void)
@@ -38,6 +39,7 @@ static int __init kio_init(void)
 
 	pr_info("kio: init, version %s\n", KIO_GIT_REVISION);
 
+	rc = kio_config_init();
 
 	return rc;
 }
@@ -45,6 +47,8 @@ static int __init kio_init(void)
 static void __exit kio_exit(void)
 {
 	pr_info("kio: exit\n");
+
+	kio_config_exit();
 }
 
 module_init(kio_init);

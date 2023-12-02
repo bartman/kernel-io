@@ -40,7 +40,6 @@ load: all
 	sync
 	sync
 	${SUDO} insmod kio.ko ${KIO_OPTIONS}
-	${SUDO} chmod og+rw /dev/kio
 
 unload:
 	if lsmod | grep -q '^kio\>' ; then \
