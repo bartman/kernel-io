@@ -1,3 +1,4 @@
+/* Copyright 2023 Bart Trojanowski <bart@jukie.net> */
 #include <linux/atomic.h>
 #include <linux/slab.h>
 #include <linux/kthread.h>

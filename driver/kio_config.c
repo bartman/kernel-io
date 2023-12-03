@@ -1,3 +1,4 @@
+/* Copyright 2023 Bart Trojanowski <bart@jukie.net> */
 #include <linux/kernel.h>
 #include <linux/module.h>
 #include <linux/kobject.h>
