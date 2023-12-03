@@ -10,10 +10,7 @@
 #include "kio_run.h"
 
 static struct kobject *kio_kobj;
-struct kio_config kio_config = {};
-
-module_param_named(block_device, kio_config.block_device, charp, S_IRUGO);
-MODULE_PARM_DESC(block_device, "target for IO");
+static struct kio_config kio_config = {};
 
 // ------------------------------------------------------------------------
 
@@ -304,7 +301,7 @@ static struct kobj_attribute run_workload_attribute
 // ------------------------------------------------------------------------
 
 
-int __init kio_config_init(void)
+int kio_config_init(void)
 {
 	int retval;
 
@@ -342,7 +339,7 @@ err_num_threads:
 	kobject_put(kio_kobj);
 	return retval;
 }
-void __exit kio_config_exit(void)
+void kio_config_exit(void)
 {
 	kio_config_destroy_all_threads();
 

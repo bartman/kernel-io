@@ -12,7 +12,8 @@ PWD := $(shell pwd)
 
 .PHONY: build
 build:
-	make -C ${KDIR} M=$(PWD) modules
+	make -C ${KDIR} M=$(PWD) modules \
+		CONFIG_DEBUG_SECTION_MISMATCH=y
 
 install:
 	make -C ${KDIR} M=$(PWD) modules_install \

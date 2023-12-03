@@ -9,7 +9,6 @@ struct kio_thread_config;
 
 struct kio_config {
 	struct mutex mutex;
-	char *block_device;
 
 	uint32_t runtime_seconds;
 
@@ -33,7 +32,5 @@ struct kio_thread_config {
 	uint32_t write_burst;
 };
 
-extern struct kio_config kio_config;
-
-extern int __init kio_config_init(void);
-extern void __exit kio_config_exit(void);
+extern int kio_config_init(void);
+extern void kio_config_exit(void);
