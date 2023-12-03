@@ -173,23 +173,6 @@ static inline void kio_io_bio_set_start_time(struct bio *bio)
 	*time = ktime_to_ns(ktime_get());
 }
 
-static inline s64 kio_io_bio_get_start_time(struct bio *bio)
-{
-	struct bio_vec *vec = bio->bi_io_vec + 1;
-	s64 *time = ((s64*)&vec->bv_page) + 1;
-	if (unlikely (bio->bi_max_vecs < 2))
-		return 0;
-	return *time;
-}
-
-static inline s64 kio_bio_get_latency(struct bio *bio)
-{
-	u64 now = ktime_to_ns(ktime_get());
-	u64 start = kio_io_bio_get_start_time(bio);
-	s64 diff = (start && now>start) ? (now-start) : 0;
-	return diff;
-}
-
 static inline void blk_partition_remap(struct bio *bio)
 {
 	struct block_device *bdev = kio_io.bdev;

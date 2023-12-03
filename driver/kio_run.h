@@ -8,4 +8,4 @@
 extern bool kio_is_running(void);
 
 struct kio_config;
-extern int kio_run(struct kio_config *kc);
+extern int kio_run(const struct kio_config *kc);
