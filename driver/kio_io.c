@@ -26,7 +26,7 @@ MODULE_PARM_DESC(io_submit_mode, "0 submit_bio, 1 generic_make_request, 2 q->mak
 struct kio_io {
 	char *dev_name;
 	struct block_device *bdev;
-	size_t nr_blocks;
+	size_t dev_byte_size;
 #if KIO_USE_BIO_SET_MIN_PAGES
 #ifdef USE_BIOSET_INIT
 	struct bio_set bio_set;
@@ -43,7 +43,7 @@ int kio_io_init(void)
 {
 	char *dev_name = NULL;
 	struct block_device *bdev;
-	size_t dev_byte_size, nr_blocks;
+	size_t dev_byte_size;
 	int rc;
 
 	/* get the device */
@@ -89,9 +89,8 @@ int kio_io_init(void)
 		rc = -ETOOSMALL;
 		goto err_put_back_bd;
 	}
-	nr_blocks = dev_byte_size >> PAGE_SHIFT;
 
-	pr_debug("%s: nr_blocks: %zu\n", __func__, nr_blocks);
+	pr_debug("%s: : %zu\n", __func__, dev_byte_size);
 
 	/* allocate the bio set */
 
@@ -122,10 +121,10 @@ int kio_io_init(void)
 
 	kio_io.dev_name = dev_name;
 	kio_io.bdev = bdev;
-	kio_io.nr_blocks = nr_blocks;
+	kio_io.dev_byte_size = dev_byte_size;
 
-	pr_info("kio: using %s with %zu blocks available\n",
-		kio_io.dev_name, kio_io.nr_blocks);
+	pr_info("kio: using %s with %zu bytes available\n",
+		kio_io.dev_name, kio_io.dev_byte_size);
 
 	return 0;
 
@@ -159,9 +158,19 @@ void kio_io_exit(void)
 	memset(&kio_io, 0, sizeof(kio_io));
 }
 
-static inline bool kio_io_offset_is_valid(off_t off)
+const char * kio_io_dev_name(void)
 {
-	return off < kio_io.nr_blocks;
+	return kio_io.dev_name;
+}
+
+u64 kio_io_dev_byte_size(void)
+{
+	return kio_io.dev_byte_size;
+}
+
+static inline bool kio_io_offset_is_valid(off_t off, size_t size)
+{
+	return (off+size) <= kio_io.dev_byte_size;
 }
 
 static inline void kio_io_bio_set_start_time(struct bio *bio)
@@ -198,9 +207,9 @@ int kio_io_submit(off_t off, struct page *page, bool is_write,
 		return -EFAULT;
 	}
 
-	if (unlikely (!kio_io_offset_is_valid(off))) {
+	if (unlikely (!kio_io_offset_is_valid(off, PAGE_SIZE))) {
 		pr_warn("%s: invalid off=%lx max=%lx, cannot queue %s bio\n",
-			__func__, off, kio_io.nr_blocks,
+			__func__, off, kio_io.dev_byte_size,
 			is_write ? "write" : "read");
 		return -EINVAL;
 	}
@@ -220,7 +229,7 @@ int kio_io_submit(off_t off, struct page *page, bool is_write,
 	/* the second bvec also holds the start time, see kio_io_bio_get_start_time() */
 	kio_io_bio_set_start_time(bio);
 
-	bio->bi_iter.bi_sector = (off << PAGE_SHIFT) >> SECTOR_SHIFT;
+	bio->bi_iter.bi_sector = off >> SECTOR_SHIFT;
 	bio_set_dev(bio, kio_io.bdev);
 
 	rc = bio_add_page(bio, page, PAGE_SIZE, 0);

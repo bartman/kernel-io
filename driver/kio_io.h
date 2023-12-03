@@ -6,6 +6,9 @@
 extern int kio_io_init(void);
 extern void kio_io_exit(void);
 
+extern const char * kio_io_dev_name(void);
+extern u64 kio_io_dev_byte_size(void);
+
 extern int kio_io_submit(off_t off, struct page *page, bool is_write,
 			     bio_end_io_t fn, void *bi_private);
 

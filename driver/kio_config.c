@@ -8,6 +8,7 @@
 #include <linux/log2.h>
 
 #include "kio_config.h"
+#include "kio_io.h"
 #include "kio_run.h"
 
 static struct kobject *kio_kobj;
@@ -44,6 +45,8 @@ static struct kio_config kio_config = {};
 static bool kio_config_is_valid(void)
 {
 	int i;
+	const char *dev_name = kio_io_dev_name();
+	u64 dev_size = kio_io_dev_byte_size();
 
 	CHECK_VAR(num_threads, "%d", 1, num_online_cpus());
 	CHECK_VAR(runtime_seconds, "%d", 1, KIO_MAX_RUNTIME_SECONDS);
@@ -69,6 +72,31 @@ static bool kio_config_is_valid(void)
 				"must be a power of 2\n",
 				i, kio_config.threads[i].block_size);
 			return false;
+		}
+
+		/* check offset_low against device size */
+
+		if (kio_config.threads[i].offset_low
+		    + kio_config.threads[i].block_size > dev_size) {
+			pr_warn("kio: thread %u offset_low %lu + block_size %u "
+				"cannot exceed device %s size %llu",
+				i, kio_config.threads[i].offset_low,
+				kio_config.threads[i].block_size,
+				dev_name, dev_size);
+			return false;
+		}
+
+		/* cap offset_high to device size */
+
+		if (kio_config.threads[i].offset_high
+		    + kio_config.threads[i].block_size > dev_size) {
+			pr_warn("kio: thread %u offset_low %lu + block_size %u "
+				"corrected to device %s size %llu",
+				i, kio_config.threads[i].offset_low,
+				kio_config.threads[i].block_size,
+				dev_name, dev_size);
+			kio_config.threads[i].offset_high
+				= dev_size - kio_config.threads[i].block_size;
 		}
 
 		/* offset_low is less than offset_high */
