@@ -20,7 +20,7 @@ fi
 write runtime_seconds 5
 
 write 0/block_size        4096
-write 0/queue_depth       1
+write 0/queue_depth       10
 write 0/offset_low        0
 write 0/offset_high       0xFFFFFFFF
 write 0/offset_random     1

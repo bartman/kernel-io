@@ -7,6 +7,7 @@
 #include <linux/blk_types.h>
 #include <linux/bio.h>
 #include <linux/delay.h>
+#include <linux/prandom.h>
 
 #include "kio_run.h"
 #include "kio_config.h"
@@ -35,6 +36,9 @@ struct kio_thread {
 	u64 slat_total;
 	atomic64_t clat_total;
 
+	uint32_t read_burst;
+	uint32_t write_burst;
+	off_t next_offset;
 };
 
 static inline struct page *kio_new_page(void)
@@ -62,6 +66,69 @@ void kio_bio_completion (struct bio *bio)
 	bio_put(bio);
 }
 
+static inline int kio_thread_too_busy(struct kio_thread *th)
+{
+	const struct kio_thread_config *ktc = th->config;
+	return ktc->queue_depth
+		&& atomic_read(&th->dispatched) >= ktc->queue_depth;
+}
+
+static inline bool kio_thread_is_write_next(struct kio_thread *th)
+{
+	const struct kio_thread_config *ktc = th->config;
+	u32 rnd;
+
+	if (th->read_burst) {
+		th->read_burst --;
+		return false;
+	}
+
+	if (th->write_burst) {
+		th->write_burst --;
+		return true;
+	}
+
+	if (ktc->read_mix_percent >= 100)
+		return false;
+
+	if (ktc->read_mix_percent < 1)
+		return true;
+
+	rnd = prandom_u32() % 100;
+	if (rnd < ktc->read_mix_percent) {
+		th->read_burst = ktc->read_burst - 1;
+		return false;
+	} else {
+		th->write_burst = ktc->write_burst - 1;
+		return true;
+	}
+}
+
+static inline off_t kio_thread_next_offset(struct kio_thread *th)
+{
+	const struct kio_thread_config *ktc = th->config;
+	off_t result;
+
+	u64 range = ktc->offset_high - ktc->offset_low;
+	if (unlikely (!range))
+	    return ktc->offset_low;
+
+	if (ktc->offset_random) {
+		u32 lo = prandom_u32();
+		u32 hi = prandom_u32();
+		u64 rnd = (u64)hi<<32 | lo;
+		return ktc->offset_low + (rnd % range);
+	}
+
+	result = th->next_offset;
+
+	th->next_offset += ktc->block_size;
+	if (th->next_offset > ktc->offset_high)
+		th->next_offset = ktc->offset_low;
+
+	return result;
+}
+
 static int kio_thread_fn(void *data)
 {
 	DECLARE_WAIT_QUEUE_HEAD(wqh);
@@ -81,16 +148,33 @@ static int kio_thread_fn(void *data)
 		off_t offset;
 		struct page *page;
 		s64 io_start, slat_nsec;
+		bool is_write;
+		u32 sleep_usec;
+
+		if (unlikely(kio_thread_too_busy(th))) {
+			rc = wait_event_interruptible(wqh,
+					      !kio_thread_too_busy(th));
+			(void)rc;
+		}
+
+		page = kio_new_page();
+		if (unlikely(!page)) {
+			pr_warn("kio: thread[%u]: failed allocate page\n",
+				th->index);
+			result = -ENOMEM;
+			break;
+		}
+
+		is_write = kio_thread_is_write_next(th);
+		offset = kio_thread_next_offset(th);
 
 		io_start = ktime_to_ns(ktime_get());
 
-		offset = 0;
-		page = kio_new_page();
-
 		atomic_inc(&th->dispatched);
 
-		result = kio_io_submit_read(offset, page, kio_bio_completion, th);
-		if (result<0) {
+		result = kio_io_submit(offset, page, is_write,
+				       kio_bio_completion, th);
+		if (unlikely(result<0)) {
 			pr_warn("kio: thread[%u]: failed read dispatch at %ld, with %d\n",
 				th->index, offset, result);
 			break;
@@ -100,15 +184,16 @@ static int kio_thread_fn(void *data)
 
 		th->slat_total += slat_nsec;
 
-		if (ktc->read_sleep_usec) {
-			unsigned long hz = usecs_to_jiffies(ktc->read_sleep_usec);
+		sleep_usec = is_write ? ktc->write_sleep_usec : ktc->read_sleep_usec;
+		if (unlikely(sleep_usec)) {
+			unsigned long hz = usecs_to_jiffies(sleep_usec);
 			if (hz)
 				schedule_timeout(hz);
 			else
 				udelay(ktc->read_sleep_usec);
 		}
 
-		if (signal_pending(current)) {
+		if (unlikely(signal_pending(current))) {
 			result = -EINTR;
 			break;
 		}
