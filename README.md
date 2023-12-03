@@ -6,6 +6,8 @@ KIO is similar (in spirit) to `fio` but runs entierly in the kernel.  This
 removes any user space and queuing overhead, and measures just the device
 driver + hardware.
 
+This code is provided under the GPLv2 license.
+
 ## TL;DR
 
 Quick run:
