@@ -176,11 +176,9 @@ static ssize_t kio_thread_var_store(struct kobject *kobj, struct kobj_attribute 
 	if (!ktc)
 		return -ENODEV;
 
-	rc = sscanf(buf, "%ld", &value);
+	rc = kstrtol(buf, 0, &value);
 	if (rc<0)
 		return rc;
-	if (!rc)
-		return -EINVAL;
 
 	switch (var_index) {
 	case KIO_BLOCK_SIZE:       ktc->block_size       = value; break;
