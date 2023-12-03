@@ -49,7 +49,7 @@ int kio_io_init(void)
 	/* get the device */
 
 	if (!kio_block_device) {
-		pr_warn("kio: no block_device provided for paging\n");
+		pr_warn("kio: no block_device provided for IO\n");
 		return -EINVAL;
 	}
 
@@ -124,7 +124,7 @@ int kio_io_init(void)
 	kio_io.bdev = bdev;
 	kio_io.nr_blocks = nr_blocks;
 
-	pr_info("kio: paging to %s with %zu blocks available\n",
+	pr_info("kio: using %s with %zu blocks available\n",
 		kio_io.dev_name, kio_io.nr_blocks);
 
 	return 0;
