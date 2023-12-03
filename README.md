@@ -47,7 +47,7 @@ A result (in `dmesg`) may look like this:
 
 Latencies, IOPS, and bandwidth are reported as averages.
 
-Latency is reported in microseconds (*usec*).
+Latency is reported in microseconds (*usec*), and is split into submission latency and completion latency.
 
 # Limitations
 
