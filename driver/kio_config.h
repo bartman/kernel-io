@@ -7,6 +7,8 @@
 
 struct kio_thread_config;
 
+#define KIO_MAX_RUNTIME_SECONDS 3600
+
 struct kio_config {
 	struct mutex mutex;
 
@@ -30,6 +32,9 @@ struct kio_thread_config {
 
 	uint32_t read_burst;
 	uint32_t write_burst;
+
+	uint32_t read_sleep_usec;
+	uint32_t write_sleep_usec;
 };
 
 extern int kio_config_init(void);

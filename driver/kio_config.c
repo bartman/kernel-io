@@ -5,12 +5,115 @@
 #include <linux/string.h>
 #include <linux/sysfs.h>
 #include <linux/init.h>
+#include <linux/log2.h>
 
 #include "kio_config.h"
 #include "kio_run.h"
 
 static struct kobject *kio_kobj;
 static struct kio_config kio_config = {};
+
+// ------------------------------------------------------------------------
+
+#define CHECK_VAR(_name,_fmt,_min,_max) \
+({ \
+	typeof(kio_config._name) \
+		val = kio_config._name, \
+		min = _min, max = _max; \
+	if (val < min || val > max) { \
+		pr_warn("kio: %s value " _fmt \
+			" is out of range [" _fmt "," _fmt "]\n", \
+			__stringify(_name), val, min, max); \
+		return false; \
+	} \
+})
+
+#define CHECK_THRD_VAR(_index,_name,_fmt,_min,_max) \
+({ \
+	typeof(kio_config.threads[_index]._name) \
+		val = kio_config.threads[_index]._name, \
+		min = (_min), max = (_max); \
+	if (val < min || val > max) { \
+		pr_warn("kio: thread %u %s value " _fmt \
+			" is out of range [" _fmt "," _fmt "]\n", \
+			_index, __stringify(_name), val, min, max); \
+		return false; \
+	} \
+})
+
+static bool kio_config_is_valid(void)
+{
+	int i;
+
+	CHECK_VAR(num_threads, "%d", 1, num_online_cpus());
+	CHECK_VAR(runtime_seconds, "%d", 1, KIO_MAX_RUNTIME_SECONDS);
+
+	for (i=0; i<kio_config.num_threads; i++) {
+
+		/* range checks */
+
+		CHECK_THRD_VAR(i, block_size, "%d", 512, 1<<20);
+		CHECK_THRD_VAR(i, offset_low, "%ld", 0, LONG_MAX);
+		CHECK_THRD_VAR(i, offset_high, "%ld", 0, LONG_MAX);
+		CHECK_THRD_VAR(i, read_mix_percent, "%d", 0, 100);
+		CHECK_THRD_VAR(i, read_burst, "%d", 0, 1024);
+		CHECK_THRD_VAR(i, write_burst, "%d", 0, 1024);
+		CHECK_THRD_VAR(i, read_sleep_usec, "%d", 0, 100000);
+		CHECK_THRD_VAR(i, write_sleep_usec, "%d", 0, 100000);
+
+		/* block size is a power of 2 */
+
+		if (!is_power_of_2(kio_config.threads[i].block_size)) {
+			pr_warn("kio: thread %u block_size value %u "
+				"must be a power of 2\n",
+				i, kio_config.threads[i].block_size);
+			return false;
+		}
+
+		/* offset_low is less than offset_high */
+
+		if (kio_config.threads[i].offset_low >=
+		    kio_config.threads[i].offset_high) {
+			pr_warn("kio: thread %u offset_low %lu must be "
+				"smaller than offset_high %lu\n",
+				i, kio_config.threads[i].offset_low,
+				kio_config.threads[i].offset_high);
+			return false;
+		}
+
+		/* either read_burst or write_burst are set */
+
+		if (!kio_config.threads[i].read_burst
+		    && !kio_config.threads[i].write_burst) {
+			pr_warn("kio: thread %u has neither read_burst nor "
+				"write_burst set\n", i);
+			return false;
+		}
+
+		/* for read-only workload read_burst must be set */
+
+		if (kio_config.threads[i].read_mix_percent == 100
+		    && !kio_config.threads[i].read_burst) {
+			pr_warn("kio: thread %u has is read-only but does "
+				"not set read_burst\n", i);
+			return false;
+		}
+
+		/* for write-only workload write_burst must be set */
+
+		if (kio_config.threads[i].read_mix_percent == 0
+		    && !kio_config.threads[i].write_burst) {
+			pr_warn("kio: thread %u has is write-only but does "
+				"not set write_burst\n", i);
+			return false;
+		}
+	}
+
+	return true;
+}
+
+#undef CHECK_VAR
+#undef CHECK_THRD_VAR
 
 // ------------------------------------------------------------------------
 
@@ -22,6 +125,8 @@ enum {
 	KIO_READ_MIX_PERCENT,
 	KIO_READ_BURST,
 	KIO_WRITE_BURST,
+	KIO_READ_SLEEP_USEC,
+	KIO_WRITE_SLEEP_USEC,
 };
 
 static inline struct kio_thread_config *kio_thread_config_from_kobj(struct kobject *kobj)
@@ -51,6 +156,8 @@ static ssize_t kio_thread_var_show(struct kobject *kobj, struct kobj_attribute *
 	case KIO_READ_MIX_PERCENT: value = ktc->read_mix_percent; break;
 	case KIO_READ_BURST:       value = ktc->read_burst;       break;
 	case KIO_WRITE_BURST:      value = ktc->write_burst;      break;
+	case KIO_READ_SLEEP_USEC:  value = ktc->read_sleep_usec;  break;
+	case KIO_WRITE_SLEEP_USEC: value = ktc->write_sleep_usec; break;
 	default: return -ENOENT;
 	}
 	return sprintf(buf, "%ld\n", value);
@@ -83,6 +190,8 @@ static ssize_t kio_thread_var_store(struct kobject *kobj, struct kobj_attribute 
 	case KIO_READ_MIX_PERCENT: ktc->read_mix_percent = value; break;
 	case KIO_READ_BURST:       ktc->read_burst       = value; break;
 	case KIO_WRITE_BURST:      ktc->write_burst      = value; break;
+	case KIO_READ_SLEEP_USEC:  ktc->read_sleep_usec  = value; break;
+	case KIO_WRITE_SLEEP_USEC: ktc->write_sleep_usec = value; break;
 	default: return -ENOENT;
 	}
 
@@ -111,6 +220,8 @@ VAR_ATTR_SHOW_STORE(offset_high, KIO_OFFSET_HIGH);
 VAR_ATTR_SHOW_STORE(read_mix_percent, KIO_READ_MIX_PERCENT);
 VAR_ATTR_SHOW_STORE(read_burst, KIO_READ_BURST);
 VAR_ATTR_SHOW_STORE(write_burst, KIO_WRITE_BURST);
+VAR_ATTR_SHOW_STORE(read_sleep_usec, KIO_READ_SLEEP_USEC);
+VAR_ATTR_SHOW_STORE(write_sleep_usec, KIO_WRITE_SLEEP_USEC);
 
 #undef VAR_ATTR_SHOW_STORE
 
@@ -139,6 +250,8 @@ static int kio_config_create_thread(unsigned tid)
 	VAR_CREATE_FILE(read_mix_percent);
 	VAR_CREATE_FILE(read_burst);
 	VAR_CREATE_FILE(write_burst);
+	VAR_CREATE_FILE(read_sleep_usec);
+	VAR_CREATE_FILE(write_sleep_usec);
 
 #undef VAR_CREATE_FILE
 
@@ -244,7 +357,7 @@ static ssize_t kio_runtime_seconds_store(struct kobject *kobj,
 
 	sscanf(buf, "%du", &seconds);
 
-	if (seconds<1 || seconds>60*60) {
+	if (seconds<1 || seconds>KIO_MAX_RUNTIME_SECONDS) {
 		result = -EOVERFLOW;
 		goto unlock_and_return_result;
 	}
@@ -285,6 +398,11 @@ static ssize_t kio_run_workload_store(struct kobject *kobj,
 		goto unlock_and_return_result;
 	}
 
+	if (!kio_config_is_valid()) {
+		result = -ENOEXEC;
+		goto unlock_and_return_result;
+	}
+
 	kio_run(&kio_config);
 
 	result = count;
@@ -299,7 +417,6 @@ static struct kobj_attribute run_workload_attribute
 	= __ATTR(run_workload, 0664, kio_run_workload_show, kio_run_workload_store);
 
 // ------------------------------------------------------------------------
-
 
 int kio_config_init(void)
 {
