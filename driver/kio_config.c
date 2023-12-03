@@ -53,6 +53,7 @@ static bool kio_config_is_valid(void)
 		/* range checks */
 
 		CHECK_THRD_VAR(i, block_size, "%d", 512, 1<<20);
+		CHECK_THRD_VAR(i, queue_depth, "%d", 1, 1024);
 		CHECK_THRD_VAR(i, offset_low, "%ld", 0, LONG_MAX);
 		CHECK_THRD_VAR(i, offset_high, "%ld", 0, LONG_MAX);
 		CHECK_THRD_VAR(i, read_mix_percent, "%d", 0, 100);
@@ -119,6 +120,7 @@ static bool kio_config_is_valid(void)
 
 enum {
 	KIO_BLOCK_SIZE,
+	KIO_QUEUE_DEPTH,
 	KIO_OFFSET_RANDOM,
 	KIO_OFFSET_LOW,
 	KIO_OFFSET_HIGH,
@@ -150,6 +152,7 @@ static ssize_t kio_thread_var_show(struct kobject *kobj, struct kobj_attribute *
 
 	switch (var_index) {
 	case KIO_BLOCK_SIZE:       value = ktc->block_size;       break;
+	case KIO_QUEUE_DEPTH:      value = ktc->queue_depth;      break;
 	case KIO_OFFSET_RANDOM:    value = ktc->offset_random;    break;
 	case KIO_OFFSET_LOW:       value = ktc->offset_low;       break;
 	case KIO_OFFSET_HIGH:      value = ktc->offset_high;      break;
@@ -182,6 +185,7 @@ static ssize_t kio_thread_var_store(struct kobject *kobj, struct kobj_attribute 
 
 	switch (var_index) {
 	case KIO_BLOCK_SIZE:       ktc->block_size       = value; break;
+	case KIO_QUEUE_DEPTH:      ktc->queue_depth      = value; break;
 	case KIO_OFFSET_RANDOM:    ktc->offset_random    = value; break;
 	case KIO_OFFSET_LOW:       ktc->offset_low       = value; break;
 	case KIO_OFFSET_HIGH:      ktc->offset_high      = value; break;
@@ -212,6 +216,7 @@ static ssize_t kio_thread_var_store(struct kobject *kobj, struct kobj_attribute 
 			 kio_config_##_name_##_store)
 
 VAR_ATTR_SHOW_STORE(block_size, KIO_BLOCK_SIZE);
+VAR_ATTR_SHOW_STORE(queue_depth, KIO_QUEUE_DEPTH);
 VAR_ATTR_SHOW_STORE(offset_random, KIO_OFFSET_RANDOM);
 VAR_ATTR_SHOW_STORE(offset_low, KIO_OFFSET_LOW);
 VAR_ATTR_SHOW_STORE(offset_high, KIO_OFFSET_HIGH);
@@ -242,6 +247,7 @@ static int kio_config_create_thread(unsigned tid)
 		goto error; \
 
 	VAR_CREATE_FILE(block_size);
+	VAR_CREATE_FILE(queue_depth);
 	VAR_CREATE_FILE(offset_random);
 	VAR_CREATE_FILE(offset_low);
 	VAR_CREATE_FILE(offset_high);

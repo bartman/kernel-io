@@ -22,6 +22,7 @@ struct kio_thread_config {
 	struct kobject *kobj;
 
 	uint32_t block_size;
+	uint32_t queue_depth;
 
 	uint8_t offset_random:1;
 
