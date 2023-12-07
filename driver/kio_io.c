@@ -186,12 +186,16 @@ static inline void kio_io_bio_set_start_time(struct bio *bio)
 static inline void blk_partition_remap(struct bio *bio)
 {
 	struct block_device *bdev = kio_io.bdev;
-	if (unlikely (bdev != bdev->bd_contains)) {
+        struct block_device *whole = bdev_whole(bdev);
+	if (unlikely (bdev != whole)) {
+#ifdef BDEV_HAS_BD_PART
 		struct hd_struct *p = bdev->bd_part;
-
 		bio->bi_iter.bi_sector += p->start_sect;
-		bio_set_dev(bio, bdev->bd_contains);
+		bio_set_dev(bio, whole);
 		bio->bi_partno = 0;
+#else
+                bio->bi_iter.bi_sector += bdev->bd_start_sect;
+#endif
 	}
 }
 
@@ -269,12 +273,18 @@ int kio_io_submit(off_t off, struct page *page, bool is_write,
 		qc = submit_bio(bio);
 		break;
 	case 1:
-		qc = generic_make_request(bio);
+		qc = submit_bio_noacct(bio);
 		break;
 	case 2: {
+#ifdef GENDISK_HAS_SUBMIT_BIO
+                struct gendisk *disk = bio->bi_bdev->bd_disk;
+		blk_partition_remap(bio);
+                qc = disk->fops->submit_bio(bio);
+#else
 		struct request_queue *q = kio_io.bdev->bd_disk->queue;
 		blk_partition_remap(bio);
 		qc = q->make_request_fn(q, bio);
+#endif
 		break;
 		}
 	}
@@ -282,4 +292,3 @@ int kio_io_submit(off_t off, struct page *page, bool is_write,
 
 	return 0;
 }
-

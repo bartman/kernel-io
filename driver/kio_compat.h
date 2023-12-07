@@ -185,6 +185,31 @@ static inline int down_read_killable(struct rw_semaphore *sem)
 #define bio_has_disk(bio) ( (bio)->bi_bdev != NULL )
 #endif
 
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,11,0)
+#define BDEV_HAS_BD_CONTAINS 1
+#define BDEV_HAS_BD_PART 1
+static inline struct block_device * bdev_whole(struct block_device *bdev)
+{
+    return bdev->bd_contains;
+}
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,9,0)
+#define HAVE_GENERIC_MAKE_REQUEST 1
+blk_qc_t submit_bio_noacct(struct bio *bio)
+{
+    return generic_make_request(bio);
+}
+#else
+#define HAVE_SUBMIT_BIO_NOACCT 1
+#endif
+
+#if LINUX_VERSION_CODE < KERNEL_VERSION(5,9,0)
+#define HAVE_MAKE_REQUEST_FN
+#else
+#define GENDISK_HAS_SUBMIT_BIO
+#endif
+
 #if LINUX_VERSION_CODE >= KERNEL_VERSION(4,18,0)
 #define USE_BIOSET_INIT 1
 #elif LINUX_VERSION_CODE >= KERNEL_VERSION(4,13,0)
