@@ -8,10 +8,10 @@
 #include <linux/blk_types.h>
 #include <linux/bio.h>
 #include <linux/delay.h>
-#include <linux/prandom.h>
 
 #include "kio_run.h"
 #include "kio_config.h"
+#include "kio_compat.h"
 #include "kio_io.h"
 
 static atomic_t kio_running = {0};
