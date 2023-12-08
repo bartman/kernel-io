@@ -205,6 +205,20 @@ static inline blk_qc_t submit_bio_noacct(struct bio *bio)
 #define HAVE_SUBMIT_BIO_NOACCT 1
 #endif
 
+#if LINUX_VERSION_CODE >= KERNEL_VERSION(5,9,0)
+#define HAVE_PRANDOM_H 1
+#else
+static inline u32 prandom_u32(void)
+{
+	static long long state = 282589933;
+	return (state = (state * 1664525) + 1013904223);
+}
+#endif
+
+#ifdef HAVE_PRANDOM_H
+#include <linux/prandom.h>
+#endif
+
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5,9,0)
 #define HAVE_MAKE_REQUEST_FN
 #else
