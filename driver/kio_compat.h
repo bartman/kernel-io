@@ -7,6 +7,7 @@
 #include <linux/bio.h>
 #include <linux/blk_types.h>
 #include <linux/bvec.h>
+#include <linux/blkdev.h>
 #include <uapi/linux/eventpoll.h>
 #include <asm/paravirt.h>
 
@@ -196,7 +197,7 @@ static inline struct block_device * bdev_whole(struct block_device *bdev)
 
 #if LINUX_VERSION_CODE < KERNEL_VERSION(5,9,0)
 #define HAVE_GENERIC_MAKE_REQUEST 1
-blk_qc_t submit_bio_noacct(struct bio *bio)
+static inline blk_qc_t submit_bio_noacct(struct bio *bio)
 {
     return generic_make_request(bio);
 }
