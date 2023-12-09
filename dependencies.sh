@@ -9,9 +9,6 @@ run() { echo >&2 "# $@" ; $SUDO $@ ; }
 say() { echo >&2 "$@" ; }
 die() { echo >&2 "$@" ; exit 1 ; }
 
-# run dependencies.sh from blot project (ignore errors)
-./blot/dependencies.sh || true
-
 if [ -s /etc/redhat-release ]; then
 
         die "RHEL/CentOS not yet supported"
