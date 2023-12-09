@@ -16,7 +16,7 @@ jobs:
     - name: dependencies
       run: ./dependencies.sh
     - name: fetch tags
-      run: git fetch origin 'refs/tags/v*:refs/tags/v*'
+      run: git fetch --tags
     - name: make
       run: make KVER='*'
     - name: make deb

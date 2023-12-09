@@ -26,7 +26,8 @@ debug-on debug-off:
 
 KIO_VERSION_H = include/kio_version.h
 ifeq ($(KERNELRELEASE),)
-KIO_GIT_REVISION=$(shell git describe --always --abbrev=8)
+# for some reason on github, git describe --always --abbrev=8 didn't always work
+KIO_GIT_REVISION=$(shell echo "$$(git tag --sort=committerdate | tail -1)-r$$(git rev-list --count HEAD)-g$$(git rev-parse --short HEAD)")
 check-version:
 	@echo KIO_GIT_REVISION=${KIO_GIT_REVISION}
 ifneq (${KIO_GIT_REVISION},)
@@ -51,7 +52,7 @@ SUDO = $(shell which sudo)
 DKMS_NAME    = kio
 DEB_NAME     = ${DKMS_NAME}-dkms
 DEB_ARCH     = $(shell dpkg --print-architecture)
-DEB_VERSION  = $(shell git describe --always | sed -r -e 's/^v([0-9.-]*)(-g.*|)$$/\1/' )
+DEB_VERSION  = $(shell echo "${KIO_GIT_REVISION}" | sed -r -e 's/^v([0-9.]+)(-r[^-]+|)(-g.+|)$$/\1\3/' )
 DEB_REVISION = 1
 
 DEB_PKG_NAME = ${DEB_NAME}_${DEB_VERSION}-${DEB_REVISION}_${DEB_ARCH}
@@ -105,6 +106,7 @@ deb-path:
 	mkdir -p ${DEB_PKG_DIR}/DEBIAN
 
 ${DEB_PKG_FILE}: deb-path
+	@echo "DEB_VERSION=${DEB_VERSION}"
 	# install module sources in packaging tree
 	fakeroot ${MAKE} deb-install-source
 	#
