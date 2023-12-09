@@ -2,6 +2,7 @@
 #include <linux/kernel.h>
 #include <linux/types.h>
 #include <linux/blk_types.h>
+#include "kio_compat.h"
 
 extern int kio_io_init(void);
 extern void kio_io_exit(void);
