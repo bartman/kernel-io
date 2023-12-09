@@ -21,21 +21,24 @@ struct kio_config {
 struct kio_thread_config {
 	struct kobject *kobj;
 
-	uint32_t block_size;
-	uint32_t queue_depth;
-
-	uint8_t offset_random:1;
-
 	off_t offset_low;
 	off_t offset_high;
 
-	uint8_t read_mix_percent;
+	uint32_t block_size;
+	uint32_t queue_depth;
+	uint32_t offset_stride;         // offset increment, if non-zero
 
-	uint32_t read_burst;
-	uint32_t write_burst;
+	uint32_t offset_random:1;       // if set random offsets
+	uint32_t burst_delay:1;         // delay applied on burst, not IOs
+	uint32_t burst_finish:1;        // finish burst before starting another
 
-	uint32_t read_sleep_usec;
-	uint32_t write_sleep_usec;
+	uint8_t read_mix_percent;       // mix of bursts, not IOs
+
+	uint32_t read_burst;            // keep reading for this many IOs
+	uint32_t write_burst;           // keep writing for this many IOs
+
+	uint32_t read_sleep_usec;       // delay after each read
+	uint32_t write_sleep_usec;      // delay after each write
 };
 
 extern int kio_config_init(void);

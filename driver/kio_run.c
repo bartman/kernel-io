@@ -40,6 +40,8 @@ struct kio_thread {
 	uint32_t read_burst;
 	uint32_t write_burst;
 	off_t next_offset;
+
+	u8 was_write;
 };
 
 static inline struct page *kio_new_page(void)
@@ -67,6 +69,11 @@ void kio_bio_completion (struct bio *bio)
 	bio_put(bio);
 }
 
+static inline int kio_thread_busy(struct kio_thread *th)
+{
+	return atomic_read(&th->dispatched);
+}
+
 static inline int kio_thread_too_busy(struct kio_thread *th)
 {
 	const struct kio_thread_config *ktc = th->config;
@@ -74,63 +81,86 @@ static inline int kio_thread_too_busy(struct kio_thread *th)
 		&& atomic_read(&th->dispatched) >= ktc->queue_depth;
 }
 
-static inline bool kio_thread_is_write_next(struct kio_thread *th)
+struct dir {
+	u8 is_write;
+	u8 changed;
+};
+
+static inline struct dir kio_thread_next_dir(struct kio_thread *th)
 {
 	const struct kio_thread_config *ktc = th->config;
 	u32 rnd;
+	struct dir dir;
 
 	if (th->read_burst) {
 		th->read_burst --;
-		return false;
+		dir.is_write = false;
+		goto finish;
 	}
 
 	if (th->write_burst) {
 		th->write_burst --;
-		return true;
+		dir.is_write = true;
+		goto finish;
 	}
 
-	if (ktc->read_mix_percent >= 100)
-		return false;
+	if (ktc->read_mix_percent >= 100) {
+		dir.is_write = false;
+		goto finish;
+	}
 
-	if (ktc->read_mix_percent < 1)
-		return true;
+	if (ktc->read_mix_percent < 1) {
+		dir.is_write = true;
+		goto finish;
+	}
 
 	rnd = prandom_u32() % 100;
 	if (rnd < ktc->read_mix_percent) {
 		th->read_burst = ktc->read_burst - 1;
-		return false;
+		dir.is_write = false;
 	} else {
 		th->write_burst = ktc->write_burst - 1;
-		return true;
+		dir.is_write = true;
 	}
+
+finish:
+	dir.changed = th->was_write != dir.is_write;
+	th->was_write = dir.is_write;
+	return dir;
 }
 
 static inline off_t kio_thread_next_offset(struct kio_thread *th)
 {
+	const unsigned block_size = kio_io_dev_block_size();
 	const struct kio_thread_config *ktc = th->config;
-	off_t result;
+	off_t result, range;
 
-	u64 range = ktc->offset_high - ktc->offset_low;
+	if (!block_size)
+		return 0;
+
+	range = ktc->offset_high - ktc->offset_low;
 	if (unlikely (!range))
-	    return ktc->offset_low;
+		return ktc->offset_low;
 
 	if (ktc->offset_random) {
-		const unsigned block_size = kio_io_dev_block_size();
 		u32 lo = prandom_u32();
 		u32 hi = prandom_u32();
 		u64 rnd = (u64)hi<<32 | lo;
 		result = ktc->offset_low + (rnd % range);
 
-		result /= block_size;
-		result *= block_size;
-
 	} else {
+		uint32_t stride = ktc->offset_stride;
+
 		result = th->next_offset;
 
-		th->next_offset += ktc->block_size;
-		if (th->next_offset > ktc->offset_high)
+		th->next_offset += stride;
+		if (th->next_offset >= ktc->offset_high)
 			th->next_offset = ktc->offset_low;
 	}
+
+	/* must be a multiple of a block size */
+	result /= block_size;
+	result *= block_size;
 
 	return result;
 }
@@ -154,7 +184,7 @@ static int kio_thread_fn(void *data)
 		off_t offset;
 		struct page *page;
 		s64 io_start, slat_nsec;
-		bool is_write;
+		struct dir dir;
 		u32 sleep_usec;
 
 		if (unlikely(kio_thread_too_busy(th))) {
@@ -171,14 +201,20 @@ static int kio_thread_fn(void *data)
 			break;
 		}
 
-		is_write = kio_thread_is_write_next(th);
+		dir = kio_thread_next_dir(th);
 		offset = kio_thread_next_offset(th);
 
 		io_start = ktime_to_ns(ktime_get());
 
 		atomic_inc(&th->dispatched);
 
-		result = kio_io_submit(offset, page, is_write,
+		if (ktc->burst_finish && dir.changed) {
+			rc = wait_event_interruptible(wqh,
+					      !kio_thread_busy(th));
+			(void)rc;
+		}
+
+		result = kio_io_submit(offset, page, dir.is_write,
 				       kio_bio_completion, th);
 		if (unlikely(result<0)) {
 			pr_warn("kio: thread[%u]: failed read dispatch at %ld, with %d\n",
@@ -190,13 +226,15 @@ static int kio_thread_fn(void *data)
 
 		th->slat_total += slat_nsec;
 
-		sleep_usec = is_write ? ktc->write_sleep_usec : ktc->read_sleep_usec;
+		sleep_usec = dir.is_write ? ktc->write_sleep_usec : ktc->read_sleep_usec;
 		if (unlikely(sleep_usec)) {
-			unsigned long hz = usecs_to_jiffies(sleep_usec);
-			if (hz)
-				schedule_timeout(hz);
-			else
-				udelay(ktc->read_sleep_usec);
+			if (!ktc->burst_delay || dir.changed) {
+				unsigned long hz = usecs_to_jiffies(sleep_usec);
+				if (hz)
+					schedule_timeout(hz);
+				else
+					udelay(ktc->read_sleep_usec);
+			}
 		}
 
 		if (unlikely(signal_pending(current))) {
@@ -258,7 +296,6 @@ static void kio_run_stats_thread(const struct kio_thread *th,
 		iops = ((u64)cnt * NSEC_PER_SEC) / th->runtime;
 		bps = ((u64)cnt * ktc->block_size * NSEC_PER_SEC) / th->runtime;
 	}
-
 
 	pr_warn("kio: thread[%u]: completed=%u "
 		"lat=%llu.%03llu(%llu.%03llu+%llu.%03llu) iops=%u MB/s=%llu.%03llu\n",

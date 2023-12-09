@@ -57,6 +57,7 @@ static bool kio_config_is_valid(void)
 		/* range checks */
 
 		CHECK_THRD_VAR(i, block_size, "%d", 512, 1<<20);
+		CHECK_THRD_VAR(i, offset_stride, "%d", 512, 1<<20);
 		CHECK_THRD_VAR(i, queue_depth, "%d", 1, 1024);
 		CHECK_THRD_VAR(i, offset_low, "%ld", 0, LONG_MAX);
 		CHECK_THRD_VAR(i, offset_high, "%ld", 0, LONG_MAX);
@@ -72,6 +73,13 @@ static bool kio_config_is_valid(void)
 			pr_warn("kio: thread %u block_size value %u "
 				"must be a power of 2\n",
 				i, kio_config.threads[i].block_size);
+			return false;
+		}
+
+		if (!is_power_of_2(kio_config.threads[i].offset_stride)) {
+			pr_warn("kio: thread %u offset_stride value %u "
+				"must be a power of 2\n",
+				i, kio_config.threads[i].offset_stride);
 			return false;
 		}
 
@@ -151,9 +159,12 @@ enum {
 	KIO_BLOCK_SIZE,
 	KIO_QUEUE_DEPTH,
 	KIO_OFFSET_RANDOM,
+	KIO_OFFSET_STRIDE,
 	KIO_OFFSET_LOW,
 	KIO_OFFSET_HIGH,
 	KIO_READ_MIX_PERCENT,
+	KIO_BURST_DELAY,
+	KIO_BURST_FINISH,
 	KIO_READ_BURST,
 	KIO_WRITE_BURST,
 	KIO_READ_SLEEP_USEC,
@@ -183,9 +194,12 @@ static ssize_t kio_thread_var_show(struct kobject *kobj, struct kobj_attribute *
 	case KIO_BLOCK_SIZE:       value = ktc->block_size;       break;
 	case KIO_QUEUE_DEPTH:      value = ktc->queue_depth;      break;
 	case KIO_OFFSET_RANDOM:    value = ktc->offset_random;    break;
+	case KIO_OFFSET_STRIDE:    value = ktc->offset_stride;    break;
 	case KIO_OFFSET_LOW:       value = ktc->offset_low;       break;
 	case KIO_OFFSET_HIGH:      value = ktc->offset_high;      break;
 	case KIO_READ_MIX_PERCENT: value = ktc->read_mix_percent; break;
+	case KIO_BURST_DELAY:      value = ktc->burst_delay;      break;
+	case KIO_BURST_FINISH:     value = ktc->burst_finish;     break;
 	case KIO_READ_BURST:       value = ktc->read_burst;       break;
 	case KIO_WRITE_BURST:      value = ktc->write_burst;      break;
 	case KIO_READ_SLEEP_USEC:  value = ktc->read_sleep_usec;  break;
@@ -216,9 +230,12 @@ static ssize_t kio_thread_var_store(struct kobject *kobj, struct kobj_attribute 
 	case KIO_BLOCK_SIZE:       ktc->block_size       = value; break;
 	case KIO_QUEUE_DEPTH:      ktc->queue_depth      = value; break;
 	case KIO_OFFSET_RANDOM:    ktc->offset_random    = value; break;
+	case KIO_OFFSET_STRIDE:    ktc->offset_stride    = value; break;
 	case KIO_OFFSET_LOW:       ktc->offset_low       = value; break;
 	case KIO_OFFSET_HIGH:      ktc->offset_high      = value; break;
 	case KIO_READ_MIX_PERCENT: ktc->read_mix_percent = value; break;
+	case KIO_BURST_DELAY:      ktc->burst_delay      = value; break;
+	case KIO_BURST_FINISH:     ktc->burst_finish     = value; break;
 	case KIO_READ_BURST:       ktc->read_burst       = value; break;
 	case KIO_WRITE_BURST:      ktc->write_burst      = value; break;
 	case KIO_READ_SLEEP_USEC:  ktc->read_sleep_usec  = value; break;
@@ -247,9 +264,12 @@ static ssize_t kio_thread_var_store(struct kobject *kobj, struct kobj_attribute 
 VAR_ATTR_SHOW_STORE(block_size, KIO_BLOCK_SIZE);
 VAR_ATTR_SHOW_STORE(queue_depth, KIO_QUEUE_DEPTH);
 VAR_ATTR_SHOW_STORE(offset_random, KIO_OFFSET_RANDOM);
+VAR_ATTR_SHOW_STORE(offset_stride, KIO_OFFSET_STRIDE);
 VAR_ATTR_SHOW_STORE(offset_low, KIO_OFFSET_LOW);
 VAR_ATTR_SHOW_STORE(offset_high, KIO_OFFSET_HIGH);
 VAR_ATTR_SHOW_STORE(read_mix_percent, KIO_READ_MIX_PERCENT);
+VAR_ATTR_SHOW_STORE(burst_delay, KIO_BURST_DELAY);
+VAR_ATTR_SHOW_STORE(burst_finish, KIO_BURST_FINISH);
 VAR_ATTR_SHOW_STORE(read_burst, KIO_READ_BURST);
 VAR_ATTR_SHOW_STORE(write_burst, KIO_WRITE_BURST);
 VAR_ATTR_SHOW_STORE(read_sleep_usec, KIO_READ_SLEEP_USEC);
@@ -278,9 +298,12 @@ static int kio_config_create_thread(unsigned tid)
 	VAR_CREATE_FILE(block_size);
 	VAR_CREATE_FILE(queue_depth);
 	VAR_CREATE_FILE(offset_random);
+	VAR_CREATE_FILE(offset_stride);
 	VAR_CREATE_FILE(offset_low);
 	VAR_CREATE_FILE(offset_high);
 	VAR_CREATE_FILE(read_mix_percent);
+	VAR_CREATE_FILE(burst_delay);
+	VAR_CREATE_FILE(burst_finish);
 	VAR_CREATE_FILE(read_burst);
 	VAR_CREATE_FILE(write_burst);
 	VAR_CREATE_FILE(read_sleep_usec);
