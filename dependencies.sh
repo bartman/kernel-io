@@ -29,6 +29,8 @@ elif [ -f /etc/debian_version ]; then
 
         say "Installing Debian/Ubuntu dependencies"
 
+        run apt update
+
         run apt install -y build-essential cmake ninja-build \
                 git gcc gcc-multilib g++ autoconf automake \
                 libtool net-tools flawfinder zlib1g-dev \
