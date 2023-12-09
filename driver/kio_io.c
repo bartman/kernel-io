@@ -22,29 +22,15 @@ static unsigned kio_io_submit_mode = 0;
 module_param_named(io_submit_mode, kio_io_submit_mode, uint, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(io_submit_mode, "0 submit_bio, 1 generic_make_request, 2 q->make_request_fn");
 
-#define KIO_USE_BIO_SET_MIN_PAGES 128
-
-struct kio_io {
-	char *dev_name;
-	struct block_device *bdev;
-	size_t dev_byte_size;
-#if KIO_USE_BIO_SET_MIN_PAGES
-#ifdef USE_BIOSET_INIT
-	struct bio_set bio_set;
-#define KIO_IO_BIO_SET(io) &(io)->bio_set
-#else // USE_BIOSET_CREATE
-	struct bio_set *bio_set;
-#define KIO_IO_BIO_SET(io) (io)->bio_set
-#endif
-#endif
-};
-static struct kio_io kio_io;
+struct kio_io kio_io;
 
 int kio_io_init(void)
 {
 	char *dev_name = NULL;
 	struct block_device *bdev;
+	struct request_queue *q;
 	size_t dev_byte_size;
+	unsigned block_size = 0;
 	int rc;
 
 	/* get the device */
@@ -73,6 +59,15 @@ int kio_io_init(void)
 	}
 
 	pr_debug("%s: bdev: %px\n", __func__, bdev);
+
+	q = bdev->bd_disk ? bdev->bd_disk->queue : NULL;
+	if (!q) {
+		pr_warn("kio: %s doeas not have a disk queue\n",
+			kio_block_device);
+		rc = -ENODEV;
+		goto err_no_queue;
+	}
+	block_size = queue_logical_block_size(q);
 
 	rc = set_blocksize(bdev, PAGE_SIZE);
 	pr_debug("%s: set_blocksize(4k): %d\n", __func__, rc);
@@ -122,10 +117,11 @@ int kio_io_init(void)
 
 	kio_io.dev_name = dev_name;
 	kio_io.bdev = bdev;
+	kio_io.dev_block_size = block_size;
 	kio_io.dev_byte_size = dev_byte_size;
 
-	pr_info("kio: using %s with %zu bytes available\n",
-		kio_io.dev_name, kio_io.dev_byte_size);
+	pr_info("kio: using %s with %zu bytes available, with %u block size\n",
+		kio_io.dev_name, kio_io.dev_byte_size, block_size);
 
 	return 0;
 
@@ -138,6 +134,7 @@ err_put_back_bd:
 #endif
 err_bio_set_init:
 #endif
+err_no_queue:
 	blkdev_put(bdev, FMODE_READ|FMODE_WRITE|FMODE_EXCL);
 err_release_dev_name:
 	kfree(dev_name);
@@ -157,21 +154,6 @@ void kio_io_exit(void)
 	kfree(kio_io.dev_name);
 	blkdev_put(kio_io.bdev, FMODE_READ|FMODE_WRITE|FMODE_EXCL);
 	memset(&kio_io, 0, sizeof(kio_io));
-}
-
-const char * kio_io_dev_name(void)
-{
-	return kio_io.dev_name;
-}
-
-u64 kio_io_dev_byte_size(void)
-{
-	return kio_io.dev_byte_size;
-}
-
-static inline bool kio_io_offset_is_valid(off_t off, size_t size)
-{
-	return (off+size) <= kio_io.dev_byte_size;
 }
 
 static inline void kio_io_bio_set_start_time(struct bio *bio)

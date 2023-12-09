@@ -115,17 +115,22 @@ static inline off_t kio_thread_next_offset(struct kio_thread *th)
 	    return ktc->offset_low;
 
 	if (ktc->offset_random) {
+		const unsigned block_size = kio_io_dev_block_size();
 		u32 lo = prandom_u32();
 		u32 hi = prandom_u32();
 		u64 rnd = (u64)hi<<32 | lo;
-		return ktc->offset_low + (rnd % range);
+		result = ktc->offset_low + (rnd % range);
+
+		result /= block_size;
+		result *= block_size;
+
+	} else {
+		result = th->next_offset;
+
+		th->next_offset += ktc->block_size;
+		if (th->next_offset > ktc->offset_high)
+			th->next_offset = ktc->offset_low;
 	}
-
-	result = th->next_offset;
-
-	th->next_offset += ktc->block_size;
-	if (th->next_offset > ktc->offset_high)
-		th->next_offset = ktc->offset_low;
 
 	return result;
 }
