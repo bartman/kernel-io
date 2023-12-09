@@ -165,17 +165,38 @@ static inline void kio_io_bio_set_start_time(struct bio *bio)
 	*time = ktime_to_ns(ktime_get());
 }
 
+#ifdef BDEV_HAS_BD_PART
+/* this function was not exported, but it's used to skip directly into
+ * make_request_fn */
+static struct hd_struct *kio_disk_get_part(struct gendisk *disk, int partno)
+{
+	struct disk_part_tbl *ptbl = rcu_dereference(disk->part_tbl);
+	if (unlikely(partno < 0 || partno >= ptbl->len))
+		return NULL;
+	return rcu_dereference(ptbl->part[partno]);
+}
+
+#endif
+
 static inline void blk_partition_remap(struct bio *bio)
 {
 	struct block_device *bdev = kio_io.bdev;
         struct block_device *whole = bdev_whole(bdev);
 	if (unlikely (bdev != whole)) {
 #ifdef BDEV_HAS_BD_PART
-		struct hd_struct *p = bdev->bd_part;
-		bio->bi_iter.bi_sector += p->start_sect;
-		bio_set_dev(bio, whole);
-		bio->bi_partno = 0;
+		struct hd_struct *p;
+		if (bio->bi_partno)
+			return;
+
+		rcu_read_lock();
+		p = kio_disk_get_part(bio->bi_disk, bio->bi_partno);
+		if (p) {
+			bio->bi_iter.bi_sector += p->start_sect;
+			bio->bi_partno = 0;
+		}
+		rcu_read_unlock();
 #else
+		/* TODO: this is probably incomplete */
                 bio->bi_iter.bi_sector += bdev->bd_start_sect;
 #endif
 	}
