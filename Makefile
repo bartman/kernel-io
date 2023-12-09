@@ -27,7 +27,7 @@ debug-on debug-off:
 KIO_VERSION_H = include/kio_version.h
 ifeq ($(KERNELRELEASE),)
 # for some reason on github, git describe --always --abbrev=8 didn't always work
-KIO_GIT_REVISION=$(shell echo "$(git tag --sort=committerdate | tail -1)-r$(git rev-list --count HEAD)-g$(git rev-parse --short HEAD)")
+KIO_GIT_REVISION=$(shell echo "$$(git tag --sort=committerdate | tail -1)-r$$(git rev-list --count HEAD)-g$$(git rev-parse --short HEAD)")
 check-version:
 	@echo KIO_GIT_REVISION=${KIO_GIT_REVISION}
 ifneq (${KIO_GIT_REVISION},)
