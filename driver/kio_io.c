@@ -22,7 +22,7 @@ static unsigned kio_io_submit_mode = 0;
 module_param_named(io_submit_mode, kio_io_submit_mode, uint, S_IRUGO|S_IWUSR);
 MODULE_PARM_DESC(io_submit_mode, "0 submit_bio, 1 generic_make_request, 2 q->make_request_fn");
 
-struct kio_io kio_io;
+struct kio_io kio_io = {};
 
 int kio_io_init(void)
 {
