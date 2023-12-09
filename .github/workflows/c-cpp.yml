@@ -16,7 +16,7 @@ jobs:
     - name: dependencies
       run: ./dependencies.sh
     - name: fetch tags
-      run: git fetch --tags
+      run: git fetch --tags ; git describe --always --abbrev=8
     - name: make
       run: make KVER='*'
     - name: make deb
