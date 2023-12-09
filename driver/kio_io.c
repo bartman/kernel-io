@@ -90,17 +90,17 @@ int kio_io_init(void)
 
 	/* allocate the bio set */
 
-#if KIO_USE_BIO_SET_MIN_PAGES
+#if KIO_USE_BIO_SET_MIN_COUNT
 #ifdef USE_BIOSET_INIT
 	rc = bioset_init(KIO_IO_BIO_SET(&kio_io),
-			 KIO_USE_BIO_SET_MIN_PAGES, 0, BIOSET_NEED_BVECS);
+			 KIO_USE_BIO_SET_MIN_COUNT, sizeof(s64), BIOSET_NEED_BVECS);
 	if (unlikely (rc)) {
 		pr_warn("kio: could not create bio set\n");
 		goto err_bio_set_init;
 	}
 #else // USE_BIOSET_CREATE
 	KIO_IO_BIO_SET(&kio_io) = bioset_create(
-			KIO_USE_BIO_SET_MIN_PAGES, 0
+			KIO_USE_BIO_SET_MIN_COUNT, sizeof(s64)
 #ifdef BIOSET_CREATE_HAS_FLAGS
 			, BIOSET_NEED_BVECS
 #endif
@@ -126,7 +126,7 @@ int kio_io_init(void)
 	return 0;
 
 err_put_back_bd:
-#if KIO_USE_BIO_SET_MIN_PAGES
+#if KIO_USE_BIO_SET_MIN_COUNT
 #ifdef USE_BIOSET_INIT
 	bioset_exit(KIO_IO_BIO_SET(&kio_io));
 #else
@@ -143,7 +143,7 @@ err_release_dev_name:
 
 void kio_io_exit(void)
 {
-#if KIO_USE_BIO_SET_MIN_PAGES
+#if KIO_USE_BIO_SET_MIN_COUNT
 #ifdef USE_BIOSET_INIT
 	bioset_exit(KIO_IO_BIO_SET(&kio_io));
 #else
@@ -154,15 +154,6 @@ void kio_io_exit(void)
 	kfree(kio_io.dev_name);
 	blkdev_put(kio_io.bdev, FMODE_READ|FMODE_WRITE|FMODE_EXCL);
 	memset(&kio_io, 0, sizeof(kio_io));
-}
-
-static inline void kio_io_bio_set_start_time(struct bio *bio)
-{
-	struct bio_vec *vec = bio->bi_io_vec + 1;
-	s64 *time = ((s64*)&vec->bv_page) + 1;
-	if (unlikely (bio->bi_max_vecs < 2))
-		return;
-	*time = ktime_to_ns(ktime_get());
 }
 
 #ifdef BDEV_HAS_BD_PART
@@ -223,16 +214,13 @@ int kio_io_submit(off_t off, struct page *page, bool is_write,
 	}
 
 	/* NOTE: we use only 1 bvec, but allocate +1 */
-#if KIO_USE_BIO_SET_MIN_PAGES
-	bio = bio_alloc_bioset(GFP_ATOMIC, 2, KIO_IO_BIO_SET(&kio_io));
+#if KIO_USE_BIO_SET_MIN_COUNT
+	bio = bio_alloc_bioset(GFP_ATOMIC, 1, KIO_IO_BIO_SET(&kio_io));
 #else
 	bio = bio_alloc(GFP_ATOMIC, 2);
 #endif
 	if (unlikely (!bio))
 		return -ENOMEM;
-
-	/* the second bvec is used to store the offset, see kio_io_bio_offset() */
-	bio->bi_io_vec[1].bv_page = (void*)off;
 
 	/* the second bvec also holds the start time, see kio_io_bio_get_start_time() */
 	kio_io_bio_set_start_time(bio);
