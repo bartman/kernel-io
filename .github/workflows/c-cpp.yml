@@ -16,7 +16,7 @@ jobs:
     - name: dependencies
       run: ./dependencies.sh
     - name: fetch tags
-      run: git fetch --tags ; git tag ; git for-each-ref ; git describe --always --abbrev=8 --tags ; git describe --always --abbrev=8 --tags --match 'v[0-9]*' ; git tag --sort=committerdate | tail -1
+      run: git fetch --tags
     - name: make
       run: make KVER='*'
     - name: make deb
