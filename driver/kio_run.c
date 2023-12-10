@@ -83,14 +83,15 @@ static inline int kio_thread_too_busy(struct kio_thread *th)
 
 struct dir {
 	u8 is_write;
-	u8 changed;
+	u8 dir_changed;
+	u8 new_burst;
 };
 
 static inline struct dir kio_thread_next_dir(struct kio_thread *th)
 {
 	const struct kio_thread_config *ktc = th->config;
 	u32 rnd;
-	struct dir dir;
+	struct dir dir = {};
 
 	if (th->read_burst) {
 		th->read_burst --;
@@ -104,6 +105,8 @@ static inline struct dir kio_thread_next_dir(struct kio_thread *th)
 		goto finish;
 	}
 
+	dir.new_burst = 1;
+
 	if (ktc->read_mix_percent >= 100) {
 		dir.is_write = false;
 		goto finish;
@@ -116,15 +119,15 @@ static inline struct dir kio_thread_next_dir(struct kio_thread *th)
 
 	rnd = prandom_u32() % 100;
 	if (rnd < ktc->read_mix_percent) {
-		th->read_burst = ktc->read_burst - 1;
+		th->read_burst = ktc->read_burst ? ktc->read_burst - 1 : 0;
 		dir.is_write = false;
 	} else {
-		th->write_burst = ktc->write_burst - 1;
+		th->write_burst = ktc->write_burst ? ktc->write_burst - 1 : 0;
 		dir.is_write = true;
 	}
 
 finish:
-	dir.changed = th->was_write != dir.is_write;
+	dir.dir_changed = th->was_write != dir.is_write;
 	th->was_write = dir.is_write;
 	return dir;
 }
@@ -218,7 +221,7 @@ static int kio_thread_fn(void *data)
 
 		atomic_inc(&th->dispatched);
 
-		if (ktc->burst_finish && dir.changed) {
+		if (ktc->burst_finish && dir.new_burst) {
 			rc = wait_event_interruptible(wqh,
 					      !kio_thread_busy(th));
 			(void)rc;
@@ -238,7 +241,7 @@ static int kio_thread_fn(void *data)
 
 		sleep_usec = dir.is_write ? ktc->write_sleep_usec : ktc->read_sleep_usec;
 		if (unlikely(sleep_usec)) {
-			if (!ktc->burst_delay || dir.changed) {
+			if (!ktc->burst_delay || dir.dir_changed) {
 				unsigned long hz = usecs_to_jiffies(sleep_usec);
 				if (hz)
 					schedule_timeout(hz);
