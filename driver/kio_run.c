@@ -108,7 +108,7 @@ static inline struct dir kio_thread_next_dir(struct kio_thread *th)
 	dir.new_burst = 1;
 
 	if (ktc->read_mix_percent >= 100) {
-		dir.is_write = false;
+		dir.is_read = false;
 		goto finish;
 	}
 
