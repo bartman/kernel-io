@@ -13,7 +13,7 @@ This code is provided under the GPLv2 license.
 Quick run:
 ```
 $ make
-$ kio.py --num-threads 1 \
+$ ./kio.py --num-threads 1 \
         --runtime 5 \
         --block-size 4096 \
         --offset-stride 4096 \
@@ -127,6 +127,5 @@ Latency is reported in microseconds (*usec*), and is split into submission laten
 # Limitations
 
 * only tested on Ubuntu 18.04 kernel 4.15.0
-* currently results only go to `dmesg`.
 * `num_threads` can only be set once; must reload driver to change it.
 * `block_size` only 4096 is currently supported.
