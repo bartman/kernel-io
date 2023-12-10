@@ -204,6 +204,8 @@ static int kio_thread_fn(void *data)
 			rc = wait_event_interruptible(wqh,
 					      !kio_thread_too_busy(th));
 			(void)rc;
+			if (kthread_should_stop())
+				break;
 		}
 
 		page = kio_new_page();
@@ -219,13 +221,17 @@ static int kio_thread_fn(void *data)
 
 		io_start = ktime_to_ns(ktime_get());
 
-		atomic_inc(&th->dispatched);
-
 		if (ktc->burst_finish && dir.new_burst) {
 			rc = wait_event_interruptible(wqh,
 					      !kio_thread_busy(th));
 			(void)rc;
+			if (kthread_should_stop()) {
+				__free_page(page);
+				break;
+			}
 		}
+
+		atomic_inc(&th->dispatched);
 
 		result = kio_io_submit(offset, page, dir.is_write,
 				       kio_bio_completion, th);
