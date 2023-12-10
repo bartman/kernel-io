@@ -58,10 +58,12 @@ class Kio():
                 'read_sleep_usec', 'write_burst', 'write_sleep_usec']
 
         cur = self.read('num_threads')
-        print(f"cur={cur} new={num_threads}")
+        #print(f"cur={cur} new={num_threads}")
         if cur is None or ( cur>0 and cur != num_threads ):
             divider('Reloading')
             self.reload()
+
+        if cur != num_threads:
             self.write('num_threads', num_threads);
 
         self.write('runtime_seconds', runtime_seconds);
