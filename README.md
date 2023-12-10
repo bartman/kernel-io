@@ -29,7 +29,65 @@ $ ./dependencies.sh
 $ make
 ```
 
-## Configure
+## Running kio.py
+
+This is a helper script that manages configuration files and generates
+reports.
+
+```
+$ ./kio.py --num-threads 2 \
+        --runtime 5 \
+        --block-size 4096 \
+        --queue-depth 10 \
+        --offset-random 1 \
+        --read-mix-percent 100 \
+        --offset-high $((0xFFFFFFFF)) \
+        --read-burst 100 \
+        --read-mix-percent 100
+...
+-   bw_MBps: 159.743
+    clat_usec: 250.313
+    completed: 398666
+    iops: 19499.0
+    lat_usec: 253.18
+    slat_usec: 2.867
+-   0:
+        bw_MBps: 159.734
+        clat_usec: 249.932
+        completed: 199319
+        iops: 38997.0
+        lat_usec: 252.695
+        slat_usec: 2.763
+    1:
+        bw_MBps: 159.752
+        clat_usec: 250.695
+        completed: 199347
+        iops: 39002.0
+        lat_usec: 253.666
+        slat_usec: 2.971
+```
+
+It is also possible to generate a config, edit it, and then run from the config.
+
+```
+$ ./kio.py --num-threads 2 --runtime 5 --generate-config kio.conf
+$ vim kio.conf
+$ ./kio.py --config kio.conf
+```
+
+kio.py can generate reports in YAML format:
+```
+$ ./kio.py --config kio.conf --output-yaml report.yaml
+```
+
+Lastly, kio.py can be made to append to the same CVS file:
+```
+$ ./kio.py --config kio.conf --read-mix-percent 100 --output-csv report.yaml
+$ ./kio.py --config kio.conf --read-mix-percent 50 --output-csv report.yaml
+$ ./kio.py --config kio.conf --read-mix-percent 0 --output-csv report.yaml
+```
+
+## Running manually
 
 The configuration allows for setting various attributes through `sysfs`.
 See `test.sh` for an example.
