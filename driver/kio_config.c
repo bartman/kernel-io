@@ -76,12 +76,14 @@ static bool kio_config_is_valid(void)
 			return false;
 		}
 
+#if 0
 		if (!is_power_of_2(kio_config.threads[i].offset_stride)) {
 			pr_warn("kio: thread %u offset_stride value %u "
 				"must be a power of 2\n",
 				i, kio_config.threads[i].offset_stride);
 			return false;
 		}
+#endif
 
 		/* check offset_low against device size */
 

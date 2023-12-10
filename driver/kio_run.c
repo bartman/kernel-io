@@ -133,7 +133,7 @@ static inline off_t kio_thread_next_offset(struct kio_thread *th)
 {
 	const unsigned block_size = kio_io_dev_block_size();
 	const struct kio_thread_config *ktc = th->config;
-	off_t result, range;
+	off_t result, range, r_end;
 
 	if (!block_size)
 		return 0;
@@ -149,13 +149,23 @@ static inline off_t kio_thread_next_offset(struct kio_thread *th)
 		result = ktc->offset_low + (rnd % range);
 
 	} else {
-		uint32_t stride = ktc->offset_stride;
+		int32_t stride = ktc->offset_stride;
 
 		result = th->next_offset;
 
 		th->next_offset += stride;
-		if (th->next_offset >= ktc->offset_high)
-			th->next_offset = ktc->offset_low;
+		r_end = th->next_offset + ktc->block_size;
+		if (r_end > ktc->offset_high) {
+			if (stride > 0)
+				th->next_offset = ktc->offset_low;
+			else
+				th->next_offset = r_end;
+		} else if (r_end < ktc->offset_low) {
+			if (stride < 0)
+				th->next_offset = r_end;
+			else
+				th->next_offset = ktc->offset_low;
+		}
 	}
 
 	/* must be a multiple of a block size */

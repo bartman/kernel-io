@@ -26,7 +26,7 @@ struct kio_thread_config {
 
 	uint32_t block_size;
 	uint32_t queue_depth;
-	uint32_t offset_stride;         // offset increment, if non-zero
+	int32_t offset_stride;          // offset increment, if non-zero
 
 	uint32_t offset_random:1;       // if set random offsets
 	uint32_t burst_delay:1;         // delay applied on burst, not IOs
