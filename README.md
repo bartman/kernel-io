@@ -12,10 +12,25 @@ This code is provided under the GPLv2 license.
 
 Quick run:
 ```
-$ make reload
-$ ./test.sh
-$ sudo dmesg | tail -n1
-[4930136.205920] kio: summary: completed=382413 lat=133.130(2.729+130.401) iops=73640 MB/s=301.633
+$ make
+$ kio.py --num-threads 1 \
+        --runtime 5 \
+        --block-size 4096 \
+        --offset-stride 4096 \
+        --queue-depth 10 \
+        --offset-random 1 \
+        --read-mix-percent 100 \
+        --offset-high $((0xFFFFFFFF)) \
+        --read-burst 100 \
+        --read-mix-percent 100
+...
+-   bw_MBps: 299.211
+    clat_usec: 129.876
+    completed: 373186
+    iops: 73049.0
+    lat_usec: 133.03
+    slat_usec: 3.154
+...
 ```
 
 # Usage
