@@ -46,8 +46,9 @@ def read_kio_version():
         return f.readline().rstrip()
 
 class Kio():
-    def __init__(self, num_threads, runtime_seconds):
+    def __init__(self, run_label, num_threads, runtime_seconds):
         self.im_root = os.getuid() == 0
+        self.run_label = run_label
         self.num_threads = num_threads
         self.runtime_seconds = runtime_seconds
 
@@ -206,7 +207,7 @@ def main(args):
         if not args.runtime_seconds:
             args.runtime_seconds = 5
 
-    kio = Kio(args.num_threads, args.runtime_seconds)
+    kio = Kio(args.label, args.num_threads, args.runtime_seconds)
 
     print(f'KIO version {kio.version}')
 
@@ -218,7 +219,7 @@ def main(args):
 
     for k in kio.thread_names:
         val = getattr(args, k, None)
-        if not val:
+        if val is None:
             #print(f'# no {k}')
             continue
 
@@ -251,6 +252,7 @@ def main(args):
 
     if args.output_yaml:
         everything = {
+                'run_label': args.label,
                 'system': { 'timestamp': timestamp, 'hostname': hostname, 'kio_version': kio.version },
                 'config': conf,
                 'results': { 'summary': results.summary, 'threads': results.threads }
@@ -259,8 +261,8 @@ def main(args):
             yaml.dump(everything, f, indent=4, width=200, default_flow_style=False)
 
     if args.output_csv:
-        columns = [ 'timestamp', 'hostname', 'kio_version' ]
-        values = [ timestamp, hostname, kio.version ]
+        columns = [ 'timestamp', 'hostname', 'kio_version', 'label' ]
+        values = [ timestamp, hostname, kio.version, kio.run_label ]
 
         for k,v in conf['global'].items():
             columns.append(k)
@@ -342,8 +344,9 @@ if __name__ == "__main__":
     group.add_argument('--version', action='store_true', help='show version')
 
     group = parser.add_argument_group('Run config')
-    group.add_argument('-t', '--num-threads', dest='num_threads', metavar='NUM', type=int, help='number of threads')
-    group.add_argument('-s', '--runtime', dest='runtime_seconds', metavar='SEC', type=int, help='seconds to run for')
+    group.add_argument('-t', '--num-threads', dest='num_threads',     metavar='NUM', type=int, help='number of threads')
+    group.add_argument('-s', '--runtime',     dest='runtime_seconds', metavar='SEC', type=int, help='seconds to run for')
+    group.add_argument('-L', '--label',       default='',             metavar='STR', type=str, help='user label')
 
     group = parser.add_argument_group('Workload config')
     group.add_argument('--bs', '--block-size',        dest='block_size',       metavar='N', type=int)
