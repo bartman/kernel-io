@@ -105,8 +105,6 @@ static inline struct dir kio_thread_next_dir(struct kio_thread *th)
 		goto finish;
 	}
 
-	dir.new_burst = 1;
-
 	if (ktc->read_mix_percent >= 100) {
 		dir.is_write = false;
 		goto finish;
@@ -116,6 +114,8 @@ static inline struct dir kio_thread_next_dir(struct kio_thread *th)
 		dir.is_write = true;
 		goto finish;
 	}
+
+	dir.new_burst = 1;
 
 	rnd = prandom_u32() % 100;
 	if (rnd < ktc->read_mix_percent) {

@@ -1,0 +1,32 @@
+global:
+    num_threads: 2
+    runtime_seconds: 5
+threads:
+    0:
+        block_size: 4096
+        burst_delay: 0
+        burst_finish: 0
+        offset_high: 4294967295
+        offset_low: 0
+        offset_random: 0
+        offset_stride: 4096
+        queue_depth: 10
+        read_burst: 100
+        read_mix_percent: 100
+        read_sleep_usec: 0
+        write_burst: 0
+        write_sleep_usec: 0
+    1:
+        block_size: 4096
+        burst_delay: 0
+        burst_finish: 0
+        offset_high: 4294967295
+        offset_low: 0
+        offset_random: 1
+        offset_stride: 4096
+        queue_depth: 10
+        read_burst: 100
+        read_mix_percent: 100
+        read_sleep_usec: 0
+        write_burst: 0
+        write_sleep_usec: 0
