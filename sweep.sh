@@ -6,7 +6,7 @@ rm -f output.csv
 
 for th in 1 2 ; do
 	#for rd in 0 1 25 33 50 66 75 99 100 ; do
-	for rd in 0 1 25 33 50 66 75 99 100 ; do
+	for rd in 100 99 75 66 50 33 25 1 0 ; do
 		for or in 0 1 ; do
 			for ((qd=1; qd<255; qd*=2)) ; do
 				for ((bu=1; bu<255; bu*=2)) ; do
